@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultar Registros - AdminCore</title>
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header"><h2>AdminCore</h2></div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item"><a href="dashboard.html" class="nav-link"><span>Ì≥ä</span> Dashboard</a></li>
+                    <li class="nav-item"><a href="registrar-asistencia.html" class="nav-link"><span>Ì≥ù</span> Registrar Asistencia</a></li>
+                    <li class="nav-item"><a href="consultar-registros.html" class="nav-link active"><span>Ì≥ã</span> Consultar Registros</a></li>
+                </ul>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <button class="menu-toggle" id="menuToggle">‚ò∞</button>
+                    <h1 class="page-title">Consultar Registros</h1>
+                </div>
+                <div class="user-menu">
+                    <div class="user-info">
+                        <div class="user-name" id="userName"></div>
+                        <div class="user-role" id="userRole"></div>
+                    </div>
+                    <button class="btn-logout" id="btnLogout">Cerrar Sesi√≥n</button>
+                </div>
+            </div>
+            <div class="content">
+                <div id="alert-container"></div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Filtros de B√∫squeda</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Trabajador</label>
+                                <select class="form-select" id="filtroTrabajador">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Tipo de Registro</label>
+                                <select class="form-select" id="filtroTipo">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Fecha Desde</label>
+                                <input type="date" class="form-input" id="fechaDesde">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Fecha Hasta</label>
+                                <input type="date" class="form-input" id="fechaHasta">
+                            </div>
+                        </div>
+                        <div style="text-align: right; margin-top: 1rem;">
+                            <button class="btn btn-secondary" id="btnLimpiarFiltros">Limpiar Filtros</button>
+                            <button class="btn btn-primary" id="btnBuscar">Buscar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Resultados</h2>
+                        <span id="totalResultados" style="color: var(--text-secondary);"></span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Trabajador</th>
+                                        <th>RUT</th>
+                                        <th>Tipo</th>
+                                        <th>Fecha</th>
+                                        <th>Cantidad</th>
+                                        <th>Observaci√≥n</th>
+                                        <th>Registrado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resultadosTable">
+                                    <tr><td colspan="7" style="text-align: center;">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/api.js"></script>
+    <script>
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        if (!user.id) window.location.href = '../auth/login.html';
+
+        document.getElementById('userName').textContent = user.nombre;
+        document.getElementById('userRole').textContent = user.rol;
+        document.getElementById('menuToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('active');
+        });
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+            await api.auth.logout();
+            sessionStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        let todosRegistros = [];
+        let trabajadores = [];
+
+        async function cargarDatosIniciales() {
+            try {
+                trabajadores = await api.trabajadores.getAll();
+                const selectTrabajador = document.getElementById('filtroTrabajador');
+                selectTrabajador.innerHTML = '<option value="">Todos</option>' +
+                    trabajadores.map(t => `<option value="${t.id_trabajador}">${t.nombre}</option>`).join('');
+
+                const tipos = await api.asistencia.getTipos();
+                const selectTipo = document.getElementById('filtroTipo');
+                selectTipo.innerHTML = '<option value="">Todos</option>' +
+                    tipos.map(t => `<option value="${t.id_tipo}">${t.descripcion}</option>`).join('');
+
+                await buscarRegistros();
+            } catch (error) {
+                console.error('Error:', error);
+                utils.showAlert('Error al cargar datos iniciales', 'danger');
+            }
+        }
+
+        async function buscarRegistros() {
+            try {
+                todosRegistros = await api.asistencia.getAll();
+                
+                const filtroTrabajador = document.getElementById('filtroTrabajador').value;
+                const filtroTipo = document.getElementById('filtroTipo').value;
+                const fechaDesde = document.getElementById('fechaDesde').value;
+                const fechaHasta = document.getElementById('fechaHasta').value;
+
+                let registrosFiltrados = todosRegistros;
+
+                if (filtroTrabajador) {
+                    registrosFiltrados = registrosFiltrados.filter(r => 
+                        r.id_trabajador == filtroTrabajador
+                    );
+                }
+
+                if (filtroTipo) {
+                    registrosFiltrados = registrosFiltrados.filter(r => 
+                        r.id_tipo == filtroTipo
+                    );
+                }
+
+                if (fechaDesde) {
+                    registrosFiltrados = registrosFiltrados.filter(r => 
+                        r.fecha >= fechaDesde
+                    );
+                }
+
+                if (fechaHasta) {
+                    registrosFiltrados = registrosFiltrados.filter(r => 
+                        r.fecha <= fechaHasta
+                    );
+                }
+
+                mostrarResultados(registrosFiltrados);
+            } catch (error) {
+                console.error('Error:', error);
+                utils.showAlert('Error al buscar registros', 'danger');
+            }
+        }
+
+        function mostrarResultados(registros) {
+            document.getElementById('totalResultados').textContent = 
+                `${registros.length} registro${registros.length !== 1 ? 's' : ''} encontrado${registros.length !== 1 ? 's' : ''}`;
+
+            const tbody = document.getElementById('resultadosTable');
+            if (registros.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No se encontraron registros</td></tr>';
+            } else {
+                tbody.innerHTML = registros.map(r => {
+                    const trabajador = trabajadores.find(t => t.id_trabajador === r.id_trabajador);
+                    return `
+                        <tr>
+                            <td>${r.trabajador_nombre}</td>
+                            <td>${trabajador ? trabajador.rut : '-'}</td>
+                            <td><span class="badge badge-info">${r.tipo_registro}</span></td>
+                            <td>${utils.formatDate(r.fecha)}</td>
+                            <td>${r.cantidad} hrs</td>
+                            <td>${r.observacion || '-'}</td>
+                            <td>${new Date(r.fecha_registro).toLocaleString('es-CL')}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        document.getElementById('btnBuscar').addEventListener('click', buscarRegistros);
+        document.getElementById('btnLimpiarFiltros').addEventListener('click', () => {
+            document.getElementById('filtroTrabajador').value = '';
+            document.getElementById('filtroTipo').value = '';
+            document.getElementById('fechaDesde').value = '';
+            document.getElementById('fechaHasta').value = '';
+            buscarRegistros();
+        });
+
+        cargarDatosIniciales();
+    </script>
+</body>
+</html>

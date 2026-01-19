@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Jefe de Turno - AdminCore</title>
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header"><h2>AdminCore</h2></div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item"><a href="dashboard.html" class="nav-link active"><span>Ì≥ä</span> Dashboard</a></li>
+                    <li class="nav-item"><a href="registrar-asistencia.html" class="nav-link"><span>Ì≥ù</span> Registrar Asistencia</a></li>
+                    <li class="nav-item"><a href="consultar-registros.html" class="nav-link"><span>Ì≥ã</span> Consultar Registros</a></li>
+                </ul>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <button class="menu-toggle" id="menuToggle">‚ò∞</button>
+                    <h1 class="page-title">Dashboard - Jefe de Turno</h1>
+                </div>
+                <div class="user-menu">
+                    <div class="user-info">
+                        <div class="user-name" id="userName"></div>
+                        <div class="user-role" id="userRole"></div>
+                    </div>
+                    <button class="btn-logout" id="btnLogout">Cerrar Sesi√≥n</button>
+                </div>
+            </div>
+            <div class="content">
+                <div id="alert-container"></div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card" style="border-left-color: #10b981;">
+                        <div class="stat-value" id="totalTrabajadores">-</div>
+                        <div class="stat-label">Trabajadores Activos</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #3b82f6;">
+                        <div class="stat-value" id="registrosHoy">-</div>
+                        <div class="stat-label">Registros de Hoy</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #f59e0b;">
+                        <div class="stat-value" id="horasExtras">-</div>
+                        <div class="stat-label">Horas Extras del Mes</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #ef4444;">
+                        <div class="stat-value" id="inasistencias">-</div>
+                        <div class="stat-label">Inasistencias del Mes</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Registros Recientes</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Trabajador</th>
+                                        <th>Tipo Registro</th>
+                                        <th>Fecha</th>
+                                        <th>Cantidad</th>
+                                        <th>Observaci√≥n</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="registrosTable">
+                                    <tr><td colspan="5" style="text-align: center;">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/api.js"></script>
+    <script>
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        if (!user.id || user.rol !== 'Jefe de Turno') {
+            window.location.href = '../auth/login.html';
+        }
+
+        document.getElementById('userName').textContent = user.nombre;
+        document.getElementById('userRole').textContent = user.rol;
+
+        document.getElementById('menuToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('active');
+        });
+
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+            await api.auth.logout();
+            sessionStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        async function cargarEstadisticas() {
+            try {
+                const [trabajadores, registros, periodoActual] = await Promise.all([
+                    api.trabajadores.getActivos(),
+                    api.asistencia.getAll(),
+                    api.asistencia.getPeriodoActual()
+                ]);
+
+                document.getElementById('totalTrabajadores').textContent = trabajadores.length;
+
+                const today = new Date().toISOString().split('T')[0];
+                const registrosHoy = registros.filter(r => r.fecha.startsWith(today));
+                document.getElementById('registrosHoy').textContent = registrosHoy.length;
+
+                if (periodoActual) {
+                    const registrosMes = registros.filter(r => r.id_periodo === periodoActual.id_periodo);
+                    const horasExtras = registrosMes
+                        .filter(r => r.tipo_registro === 'Horas Extras')
+                        .reduce((sum, r) => sum + parseFloat(r.cantidad), 0);
+                    const inasistencias = registrosMes.filter(r => 
+                        r.tipo_registro === 'Inasistencia Justificada' || 
+                        r.tipo_registro === 'Inasistencia No Justificada'
+                    ).length;
+
+                    document.getElementById('horasExtras').textContent = horasExtras.toFixed(1) + ' hrs';
+                    document.getElementById('inasistencias').textContent = inasistencias;
+                }
+
+                // Mostrar registros recientes (√∫ltimos 10)
+                const registrosRecientes = registros.slice(0, 10);
+                const tbody = document.getElementById('registrosTable');
+                if (registrosRecientes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No hay registros</td></tr>';
+                } else {
+                    tbody.innerHTML = registrosRecientes.map(r => `
+                        <tr>
+                            <td>${r.trabajador_nombre}</td>
+                            <td><span class="badge badge-info">${r.tipo_registro}</span></td>
+                            <td>${utils.formatDate(r.fecha)}</td>
+                            <td>${r.cantidad} hrs</td>
+                            <td>${r.observacion || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error al cargar estad√≠sticas:', error);
+                utils.showAlert('Error al cargar informaci√≥n', 'danger');
+            }
+        }
+
+        cargarEstadisticas();
+        setInterval(cargarEstadisticas, 60000); // Actualizar cada minuto
+    </script>
+</body>
+</html>

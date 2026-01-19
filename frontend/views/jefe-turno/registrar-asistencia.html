@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Asistencia - AdminCore</title>
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header"><h2>AdminCore</h2></div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item"><a href="dashboard.html" class="nav-link"><span>Ì≥ä</span> Dashboard</a></li>
+                    <li class="nav-item"><a href="registrar-asistencia.html" class="nav-link active"><span>Ì≥ù</span> Registrar Asistencia</a></li>
+                    <li class="nav-item"><a href="consultar-registros.html" class="nav-link"><span>Ì≥ã</span> Consultar Registros</a></li>
+                </ul>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <button class="menu-toggle" id="menuToggle">‚ò∞</button>
+                    <h1 class="page-title">Registrar Asistencia</h1>
+                </div>
+                <div class="user-menu">
+                    <div class="user-info">
+                        <div class="user-name" id="userName"></div>
+                        <div class="user-role" id="userRole"></div>
+                    </div>
+                    <button class="btn-logout" id="btnLogout">Cerrar Sesi√≥n</button>
+                </div>
+            </div>
+            <div class="content">
+                <div id="alert-container"></div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Formulario de Registro Laboral</h2>
+                        <span style="color: var(--text-secondary); font-size: 0.875rem;">
+                            Per√≠odo: <strong id="periodoActual">Cargando...</strong>
+                        </span>
+                    </div>
+                    <form id="formRegistro">
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Trabajador *</label>
+                                    <select class="form-select" id="id_trabajador" required>
+                                        <option value="">Seleccione un trabajador</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Tipo de Registro *</label>
+                                    <select class="form-select" id="id_tipo" required>
+                                        <option value="">Seleccione tipo de registro</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Fecha *</label>
+                                    <input type="date" class="form-input" id="fecha" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Cantidad (Horas) *</label>
+                                    <input type="number" class="form-input" id="cantidad" required min="0" max="24" step="0.5" placeholder="Ej: 8, 2.5">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Observaciones</label>
+                                <textarea class="form-textarea" id="observacion" rows="3" placeholder="Detalles adicionales sobre el registro"></textarea>
+                            </div>
+
+                            <div style="padding: 1rem; background-color: var(--bg-color); border-radius: 0.375rem; margin-bottom: 1rem;">
+                                <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">Gu√≠a de Tipos de Registro:</h4>
+                                <ul style="font-size: 0.8125rem; color: var(--text-secondary); margin-left: 1.5rem;">
+                                    <li><strong>Asistencia Normal:</strong> Jornada laboral completa (8 horas)</li>
+                                    <li><strong>Horas Extras:</strong> Horas adicionales trabajadas fuera de jornada</li>
+                                    <li><strong>Inasistencia Justificada:</strong> Ausencia con justificaci√≥n v√°lida</li>
+                                    <li><strong>Inasistencia No Justificada:</strong> Ausencia sin justificaci√≥n</li>
+                                    <li><strong>Atraso:</strong> Llegada tarde (especificar horas de atraso)</li>
+                                    <li><strong>Licencia M√©dica:</strong> Ausencia por motivos m√©dicos</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div style="padding: 1.5rem; border-top: 1px solid var(--border-color); text-align: right;">
+                            <button type="button" class="btn btn-secondary" id="btnLimpiar">Limpiar Formulario</button>
+                            <button type="submit" class="btn btn-success">‚úì Registrar Asistencia</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Registros recientes -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Registros de Hoy</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Trabajador</th>
+                                        <th>Tipo</th>
+                                        <th>Cantidad</th>
+                                        <th>Observaci√≥n</th>
+                                        <th>Hora Registro</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="registrosHoy">
+                                    <tr><td colspan="5" style="text-align: center;">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/api.js"></script>
+    <script>
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        if (!user.id) window.location.href = '../auth/login.html';
+
+        document.getElementById('userName').textContent = user.nombre;
+        document.getElementById('userRole').textContent = user.rol;
+        document.getElementById('menuToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('active');
+        });
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+            await api.auth.logout();
+            sessionStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        let periodoActual = null;
+
+        // Establecer fecha actual por defecto
+        document.getElementById('fecha').valueAsDate = new Date();
+
+        async function cargarDatos() {
+            try {
+                // Cargar trabajadores activos
+                const trabajadores = await api.trabajadores.getActivos();
+                const selectTrabajador = document.getElementById('id_trabajador');
+                selectTrabajador.innerHTML = '<option value="">Seleccione un trabajador</option>' +
+                    trabajadores.map(t => `<option value="${t.id_trabajador}">${t.nombre} - ${t.rut}</option>`).join('');
+
+                // Cargar tipos de registro
+                const tipos = await api.asistencia.getTipos();
+                const selectTipo = document.getElementById('id_tipo');
+                selectTipo.innerHTML = '<option value="">Seleccione tipo de registro</option>' +
+                    tipos.map(t => `<option value="${t.id_tipo}">${t.descripcion}</option>`).join('');
+
+                // Cargar per√≠odo actual
+                periodoActual = await api.asistencia.getPeriodoActual();
+                if (periodoActual) {
+                    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                    document.getElementById('periodoActual').textContent = 
+                        `${meses[periodoActual.mes - 1]} ${periodoActual.anio}`;
+                }
+
+                // Cargar registros de hoy
+                await cargarRegistrosHoy();
+            } catch (error) {
+                console.error('Error al cargar datos:', error);
+                utils.showAlert('Error al cargar informaci√≥n inicial', 'danger');
+            }
+        }
+
+        async function cargarRegistrosHoy() {
+            try {
+                const registros = await api.asistencia.getAll();
+                const today = new Date().toISOString().split('T')[0];
+                const registrosHoy = registros.filter(r => r.fecha.startsWith(today));
+                
+                const tbody = document.getElementById('registrosHoy');
+                if (registrosHoy.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No hay registros de hoy</td></tr>';
+                } else {
+                    tbody.innerHTML = registrosHoy.map(r => `
+                        <tr>
+                            <td>${r.trabajador_nombre}</td>
+                            <td><span class="badge badge-info">${r.tipo_registro}</span></td>
+                            <td>${r.cantidad} hrs</td>
+                            <td>${r.observacion || '-'}</td>
+                            <td>${new Date(r.fecha_registro).toLocaleTimeString('es-CL')}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error al cargar registros:', error);
+            }
+        }
+
+        document.getElementById('formRegistro').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!periodoActual) {
+                utils.showAlert('No hay un per√≠odo activo para registrar', 'danger');
+                return;
+            }
+
+            const data = {
+                id_trabajador: parseInt(document.getElementById('id_trabajador').value),
+                id_periodo: periodoActual.id_periodo,
+                id_tipo: parseInt(document.getElementById('id_tipo').value),
+                fecha: document.getElementById('fecha').value,
+                cantidad: parseFloat(document.getElementById('cantidad').value),
+                observacion: document.getElementById('observacion').value || null
+            };
+
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Registrando...';
+
+            try {
+                await api.asistencia.create(data);
+                utils.showAlert('‚úì Registro de asistencia guardado exitosamente', 'success');
+                document.getElementById('formRegistro').reset();
+                document.getElementById('fecha').valueAsDate = new Date();
+                await cargarRegistrosHoy();
+            } catch (error) {
+                utils.showAlert(error.message || 'Error al registrar asistencia', 'danger');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
+        });
+
+        document.getElementById('btnLimpiar').addEventListener('click', () => {
+            document.getElementById('formRegistro').reset();
+            document.getElementById('fecha').valueAsDate = new Date();
+        });
+
+        cargarDatos();
+        
+        // Actualizar registros cada 30 segundos
+        setInterval(cargarRegistrosHoy, 30000);
+    </script>
+</body>
+</html>

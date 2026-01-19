@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gesti√≥n de Trabajadores - AdminCore</title>
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header"><h2>AdminCore</h2></div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item"><a href="dashboard.html" class="nav-link"><span>ÔøΩÔøΩ</span> Dashboard</a></li>
+                    <li class="nav-item"><a href="usuarios.html" class="nav-link"><span>Ì±•</span> Usuarios</a></li>
+                    <li class="nav-item"><a href="trabajadores.html" class="nav-link active"><span>Ì±∑</span> Trabajadores</a></li>
+                    <li class="nav-item"><a href="asistencia.html" class="nav-link"><span>Ì≥ù</span> Registros</a></li>
+                </ul>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <button class="menu-toggle" id="menuToggle">‚ò∞</button>
+                    <h1 class="page-title">Gesti√≥n de Trabajadores</h1>
+                </div>
+                <div class="user-menu">
+                    <div class="user-info">
+                        <div class="user-name" id="userName"></div>
+                        <div class="user-role"></div>
+                    </div>
+                    <button class="btn-logout" id="btnLogout">Cerrar Sesi√≥n</button>
+                </div>
+            </div>
+            <div class="content">
+                <div id="alert-container"></div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Lista de Trabajadores</h2>
+                        <button class="btn btn-primary" id="btnNuevo">+ Nuevo Trabajador</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>RUT</th>
+                                        <th>Nombre</th>
+                                        <th>Cargo</th>
+                                        <th>Sueldo Base</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dataTable"><tr><td colspan="6" style="text-align: center;">Cargando...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Nuevo Trabajador</h3>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <form id="form">
+                <div class="modal-body">
+                    <input type="hidden" id="trabajadorId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">RUT *</label>
+                            <input type="text" class="form-input" id="rut" required placeholder="12.345.678-9">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nombre Completo *</label>
+                            <input type="text" class="form-input" id="nombre" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Cargo</label>
+                            <input type="text" class="form-input" id="cargo" placeholder="Ej: Operario, Supervisor">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Sueldo Base *</label>
+                            <input type="number" class="form-input" id="sueldo_base" required min="0" step="1000">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Estado</label>
+                        <select class="form-select" id="activo">
+                            <option value="true">Activo</option>
+                            <option value="false">Inactivo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btnCancelar">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Guardar Trabajador</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="../../assets/js/api.js"></script>
+    <script>
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        if (!user.id || user.rol !== 'Administrador') window.location.href = '../auth/login.html';
+        
+        document.getElementById('userName').textContent = user.nombre;
+        document.getElementById('menuToggle').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('active'));
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+            await api.auth.logout();
+            sessionStorage.clear();
+            window.location.href = '../auth/login.html';
+        });
+
+        const modal = document.getElementById('modal');
+        const form = document.getElementById('form');
+        let editMode = false;
+
+        async function loadData() {
+            try {
+                const data = await api.trabajadores.getAll();
+                const tbody = document.getElementById('dataTable');
+                if (!data.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No hay trabajadores registrados</td></tr>';
+                } else {
+                    tbody.innerHTML = data.map(t => `
+                        <tr>
+                            <td>${utils.formatRUT(t.rut)}</td>
+                            <td>${t.nombre}</td>
+                            <td>${t.cargo || '-'}</td>
+                            <td>${utils.formatCurrency(t.sueldo_base)}</td>
+                            <td><span class="badge badge-${t.activo ? 'success' : 'danger'}">${t.activo ? 'Activo' : 'Inactivo'}</span></td>
+                            <td>
+                                <button class="btn btn-secondary" onclick="editar(${t.id_trabajador})" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Editar</button>
+                                <button class="btn btn-danger" onclick="eliminar(${t.id_trabajador})" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Eliminar</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                utils.showAlert('Error al cargar trabajadores', 'danger');
+            }
+        }
+
+        document.getElementById('btnNuevo').addEventListener('click', () => {
+            editMode = false;
+            form.reset();
+            document.getElementById('modalTitle').textContent = 'Nuevo Trabajador';
+            modal.classList.add('active');
+        });
+
+        window.editar = async (id) => {
+            try {
+                const item = await api.trabajadores.getById(id);
+                editMode = true;
+                document.getElementById('modalTitle').textContent = 'Editar Trabajador';
+                document.getElementById('trabajadorId').value = item.id_trabajador;
+                document.getElementById('rut').value = item.rut;
+                document.getElementById('nombre').value = item.nombre;
+                document.getElementById('cargo').value = item.cargo || '';
+                document.getElementById('sueldo_base').value = item.sueldo_base;
+                document.getElementById('activo').value = item.activo;
+                modal.classList.add('active');
+            } catch (error) {
+                utils.showAlert('Error al cargar trabajador', 'danger');
+            }
+        };
+
+        window.eliminar = async (id) => {
+            if (!confirm('¬øEst√° seguro de eliminar este trabajador?')) return;
+            try {
+                await api.trabajadores.delete(id);
+                utils.showAlert('Trabajador eliminado exitosamente', 'success');
+                loadData();
+            } catch (error) {
+                utils.showAlert('Error al eliminar trabajador', 'danger');
+            }
+        };
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rut = document.getElementById('rut').value;
+            if (!utils.validateRUT(rut)) {
+                utils.showAlert('RUT inv√°lido', 'danger');
+                return;
+            }
+
+            const data = {
+                rut: rut.replace(/[^0-9kK]/g, ''),
+                nombre: document.getElementById('nombre').value,
+                cargo: document.getElementById('cargo').value || null,
+                sueldo_base: parseFloat(document.getElementById('sueldo_base').value),
+                activo: document.getElementById('activo').value === 'true'
+            };
+
+            try {
+                if (editMode) {
+                    await api.trabajadores.update(document.getElementById('trabajadorId').value, data);
+                    utils.showAlert('Trabajador actualizado exitosamente', 'success');
+                } else {
+                    await api.trabajadores.create(data);
+                    utils.showAlert('Trabajador creado exitosamente', 'success');
+                }
+                modal.classList.remove('active');
+                loadData();
+            } catch (error) {
+                utils.showAlert(error.message || 'Error al guardar trabajador', 'danger');
+            }
+        });
+
+        document.getElementById('closeModal').addEventListener('click', () => modal.classList.remove('active'));
+        document.getElementById('btnCancelar').addEventListener('click', () => modal.classList.remove('active'));
+
+        document.getElementById('rut').addEventListener('blur', (e) => {
+            const rut = e.target.value.replace(/[^0-9kK]/g, '');
+            if (rut.length >= 2) {
+                e.target.value = utils.formatRUT(rut);
+            }
+        });
+
+        loadData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Administrador - AdminCore</title>
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>AdminCore</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item">
+                        <a href="dashboard.html" class="nav-link active">
+                            <span>Ì≥ä</span> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="usuarios.html" class="nav-link">
+                            <span>Ì±•</span> Gesti√≥n de Usuarios
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="trabajadores.html" class="nav-link">
+                            <span>Ì±∑</span> Trabajadores
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="asistencia.html" class="nav-link">
+                            <span>Ì≥ù</span> Registros de Asistencia
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="reportes.html" class="nav-link">
+                            <span>Ì≥à</span> Reportes
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <button class="menu-toggle" id="menuToggle">‚ò∞</button>
+                    <h1 class="page-title">Dashboard</h1>
+                </div>
+                <div class="user-menu">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Administrador</div>
+                        <div class="user-role" id="userRole">Administrador</div>
+                    </div>
+                    <button class="btn-logout" id="btnLogout">Cerrar Sesi√≥n</button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="content">
+                <div id="alert-container"></div>
+
+                <!-- Statistics Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="card">
+                        <h3 style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">Total Usuarios</h3>
+                        <p style="font-size: 2rem; font-weight: 700; color: var(--primary-color);" id="totalUsuarios">0</p>
+                    </div>
+                    <div class="card">
+                        <h3 style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">Total Trabajadores</h3>
+                        <p style="font-size: 2rem; font-weight: 700; color: var(--success-color);" id="totalTrabajadores">0</p>
+                    </div>
+                    <div class="card">
+                        <h3 style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">Registros Hoy</h3>
+                        <p style="font-size: 2rem; font-weight: 700; color: var(--warning-color);" id="registrosHoy">0</p>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Actividad Reciente</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Trabajador</th>
+                                        <th>Tipo</th>
+                                        <th>Cantidad</th>
+                                        <th>Fecha</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="actividadReciente">
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; color: var(--text-secondary);">
+                                            Cargando...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/api.js"></script>
+    <script>
+        // Verificar autenticaci√≥n
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        if (!user.id || user.rol !== 'Administrador') {
+            window.location.href = '../auth/login.html';
+        }
+
+        // Mostrar informaci√≥n del usuario
+        document.getElementById('userName').textContent = user.nombre;
+        document.getElementById('userRole').textContent = user.rol;
+
+        // Toggle sidebar en m√≥vil
+        document.getElementById('menuToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('active');
+        });
+
+        // Cerrar sesi√≥n
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+            try {
+                await api.auth.logout();
+                sessionStorage.clear();
+                window.location.href = '../auth/login.html';
+            } catch (error) {
+                console.error('Error al cerrar sesi√≥n:', error);
+                sessionStorage.clear();
+                window.location.href = '../auth/login.html';
+            }
+        });
+
+        // Cargar estad√≠sticas
+        async function loadStats() {
+            try {
+                const [usuarios, trabajadores, registros] = await Promise.all([
+                    api.usuarios.getAll(),
+                    api.trabajadores.getAll(),
+                    api.asistencia.getAll()
+                ]);
+
+                document.getElementById('totalUsuarios').textContent = usuarios.length;
+                document.getElementById('totalTrabajadores').textContent = trabajadores.length;
+                
+                const today = new Date().toISOString().split('T')[0];
+                const registrosHoy = registros.filter(r => r.fecha.startsWith(today));
+                document.getElementById('registrosHoy').textContent = registrosHoy.length;
+
+                // Mostrar actividad reciente
+                const tbody = document.getElementById('actividadReciente');
+                if (registros.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay registros</td></tr>';
+                } else {
+                    tbody.innerHTML = registros.slice(0, 10).map(r => `
+                        <tr>
+                            <td>${r.trabajador_nombre}</td>
+                            <td>${r.tipo_registro}</td>
+                            <td>${r.cantidad} hrs</td>
+                            <td>${utils.formatDate(r.fecha)}</td>
+                            <td><span class="badge badge-success">Registrado</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error al cargar estad√≠sticas:', error);
+                utils.showAlert('Error al cargar informaci√≥n', 'danger');
+            }
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>
